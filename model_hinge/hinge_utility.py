@@ -198,7 +198,7 @@ def get_nonzero_index(x, dim='output', counter=1, percentage=0.2, threshold=5e-3
         remain = x.shape[1]
     else:
         remain = x.shape[0]
-    t = n.sort().values[int(remain * 0.2)]
+    t = n.sort().values[int(remain * 0.05)]
     f = n > t  # > n.max() / 10
     f = torch.nonzero(f).squeeze(dim=1)
 
@@ -327,7 +327,7 @@ def calc_model_complexity_running(model, merge_flag=False):
     model.get_model().compress()
 
     calc_model_complexity(model)
-    model.get_model().load_state_dict(state, strict=False)
+    # model.get_model().load_state_dict(state, strict=False)
 
 
 def binary_search(model, target, merge_flag=False):
