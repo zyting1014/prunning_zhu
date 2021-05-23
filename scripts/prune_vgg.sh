@@ -24,9 +24,9 @@ THRESHOLD=5e-2
 STOP_LIMIT=0.1
 EPOCH=300
 STEP=hingestep-150-225
-CHECKPOINT=${MODEL}_${TEMPLATE}_LR${LR}r${LR_RATIO}f${LR_FACTOR}_${INIT_METHOD}_R${REG_FACTOR}_T${THRESHOLD}_S${STOP_LIMIT}_A${ANNEAL}_E${EPOCH}_${REGULARIZER}_Ratio${RATIO}
+CHECKPOINT=${MODEL}_${TEMPLATE}_LR${LR}r${LR_RATIOpercentage}f${LR_FACTOR}_${INIT_METHOD}_R${REG_FACTOR}_T${THRESHOLD}_S${STOP_LIMIT}_A${ANNEAL}_E${EPOCH}_${REGULARIZER}_Ratio${RATIO}
 echo $CHECKPOINT
-CUDA_VISIBLE_DEVICES=0 python ../main_hinge.py --save $CHECKPOINT --template "linear3_${TEMPLATE}_VGG" --model ${MODEL} --vgg_type 16 --batch_size 64 \
+CUDA_VISIBLE_DEVICES=0 python ../main.py --save $CHECKPOINT --template "linear3_${TEMPLATE}_VGG" --model ${MODEL} --vgg_type 16 --batch_size 64 \
 --epochs ${EPOCH} --decay ${STEP} --lr ${LR} --lr_ratio ${LR_RATIO} --lr_factor ${LR_FACTOR} --optimizer PG --ratio ${RATIO} \
 --sparsity_regularizer ${REGULARIZER} --regularization_factor ${REG_FACTOR} --init_method ${INIT_METHOD} --threshold ${THRESHOLD} \
 --annealing_factor ${ANNEAL} --annealing_t1 400 --annealing_t2 200 --stop_limit ${STOP_LIMIT} \

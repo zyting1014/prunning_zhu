@@ -4,7 +4,6 @@ from util import utility
 from loss import Loss
 from util.trainer_hinge import Trainer
 from model_hinge import Model
-from tensorboardX import SummaryWriter
 from model_hinge.hinge_utility import calc_model_complexity, calc_model_complexity_running, plot_compression_ratio
 
 
@@ -24,5 +23,8 @@ if checkpoint.ok:
         t.train()
         t.test()
         calc_model_complexity_running(my_model, False)
-        current_ratio = my_model.get_model().flops_compress / my_model.get_model().flops
-        ratio_log.append(current_ratio)
+
+
+
+
+    print("done")

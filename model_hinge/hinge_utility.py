@@ -193,6 +193,19 @@ def print_array_on_one_line():
 
 def get_nonzero_index(x, dim='output', counter=1, percentage=0.2, threshold=5e-3, fix_channel=0):
     n = torch.norm(x, p=2, dim=0 if dim == 'output' else 1)
+    remain = 0
+    if dim == 'output':
+        remain = x.shape[1]
+    else:
+        remain = x.shape[0]
+    t = n.sort().values[int(remain * 0.2)]
+    f = n > t  # > n.max() / 10
+    f = torch.nonzero(f).squeeze(dim=1)
+
+    return n, f
+
+def get_nonzero_index2(x, dim='output', counter=1, percentage=0.2, threshold=5e-3, fix_channel=0):
+    n = torch.norm(x, p=2, dim=0 if dim == 'output' else 1)
     if fix_channel == 0:
         if n.max() == 0:
             # print('flag')
@@ -236,6 +249,7 @@ def get_nonzero_index(x, dim='output', counter=1, percentage=0.2, threshold=5e-3
         #     print('Norm of Projection1: {}.'.format(n.detach().cpu().numpy()))
     # print(f.detach().cpu().numpy())
     return n, f
+
 
 
 ########################################################################################################################
@@ -308,24 +322,12 @@ def calc_model_complexity(model):
 
 
 def calc_model_complexity_running(model, merge_flag=False):
-    '''
-    This function calculates the model complexity during the compressing procedure.
-    It first nullifies the filters with small norms, and then calculates the model complexity.
-    Note that the 3x3 and 1x1 needs to be merged if necessary.
-    After that, the network parameters and structure before the calculation should be recovered.
-    The merged convs from 3x3 and 1x1 convs are split again.
-    '''
+
     state = copy.deepcopy(model.get_model().state_dict())
     model.get_model().compress()
-    if merge_flag:
-        # merge the 3x3 and 1x1 convs before the calculation and split the merged convs after the calculation.
-        model.get_model().merge_conv()
-        calc_model_complexity(model)
-        # print(model)
-        model.get_model().split_conv(state)
-    else:
-        calc_model_complexity(model)
-        model.get_model().load_state_dict(state, strict=False)
+
+    calc_model_complexity(model)
+    model.get_model().load_state_dict(state, strict=False)
 
 
 def binary_search(model, target, merge_flag=False):

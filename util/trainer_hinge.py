@@ -77,7 +77,9 @@ class Trainer():
                         prediction_teacher = self.model_teacher(img)
                     loss_distill = distillation(prediction, prediction_teacher, T=4)
                     loss = loss_distill * 0.4 + loss * 0.6
+
             # Backward pass and computing the gradients
+            # print("loss = " + str(loss))
             loss.backward()
             # Update learning rate based on the gradients. ResNet20, 56, 164, and Wide ResNet
 

@@ -25,9 +25,9 @@ def get_compress_idx(module, percentage, threshold):
     conv12 = module[0][1]
     projection1 = conv12.weight.data.squeeze().t()
     # decomposition
-    norm1, pindex1 = get_nonzero_index(projection1, dim='input', counter=1, percentage=percentage, threshold=threshold)
+    norm1, pindex1 = get_nonzero_index(projection1, dim='input', percentage=percentage, threshold=threshold)
     # pruning
-    norm2, pindex2 = get_nonzero_index(projection1, dim='output', counter=1, percentage=percentage, threshold=threshold)
+    norm2, pindex2 = get_nonzero_index(projection1, dim='output', percentage=percentage, threshold=threshold)
     def _get_compress_statistics(norm, pindex):
         remain_norm = norm[pindex]
         channels = norm.shape[0]
@@ -80,70 +80,40 @@ def set_module_param(module, params):
 # Compress module parameters
 # ========
 def compress_module_param(module, percentage, threshold, index_pre=None, i=0):
-    conv11 = module[0][0]
-    conv12 = module[0][1]
+    conv11 = module[0]
     batchnorm1 = module[1]
 
     ws1 = conv11.weight.shape
     weight1 = conv11.weight.data.view(ws1[0], -1).t()
-    projection1 = conv12.weight.data.squeeze().t()
-    bias1 = conv12.bias.data if conv12.bias is not None else None
+
+    bias1 = conv11.bias.data if conv11.bias is not None else None
+
     bn_weight1 = batchnorm1.weight.data
     bn_bias1 = batchnorm1.bias.data
     bn_mean1 = batchnorm1.running_mean.data
     bn_var1 = batchnorm1.running_var.data
 
-    pindex1 = get_nonzero_index(projection1, dim='input', counter=1, percentage=percentage, threshold=threshold)[1]
-    pindex2 = get_nonzero_index(projection1, dim='output', counter=1, percentage=percentage, threshold=threshold)[1]
+    pindex1 = get_nonzero_index(weight1, dim='output', percentage=percentage, threshold=threshold)[1]
 
     # conv11
     if index_pre is not None:
         index = torch.repeat_interleave(index_pre, ws1[2] * ws1[3]) * ws1[2] * ws1[3] \
                 + torch.tensor(range(0, ws1[2] * ws1[3])).repeat(index_pre.shape[0]).cuda()
         weight1 = torch.index_select(weight1, dim=0, index=index)
-    weight1 = torch.index_select(weight1, dim=1, index=pindex1)
-    conv11.weight = nn.Parameter(weight1.t().view(pindex1.shape[0], -1, ws1[2], ws1[3]))
-    conv11.out_channels, conv11.in_channels = conv11.weight.size()[:2]
-
-    # conv12: projection1, bias1
-    projection1 = torch.index_select(projection1, dim=0, index=pindex1)
     if i < 11:
-        projection1 = torch.index_select(projection1, dim=1, index=pindex2)
-        if bias1 is not None:
-            conv12.bias = nn.Parameter(torch.index_select(bias1, dim=0, index=pindex2))
+        weight1 = torch.index_select(weight1, dim=1, index=pindex1)
+        conv11.bias = nn.Parameter(torch.index_select(bias1, dim=0, index=pindex1))
+        conv11.weight = nn.Parameter(weight1.t().view(pindex1.shape[0], -1, ws1[2], ws1[3]))
 
-        # compress batchnorm1
-        batchnorm1.weight = nn.Parameter(torch.index_select(bn_weight1, dim=0, index=pindex2))
-        batchnorm1.bias = nn.Parameter(torch.index_select(bn_bias1, dim=0, index=pindex2))
-        batchnorm1.running_mean = torch.index_select(bn_mean1, dim=0, index=pindex2)
-        batchnorm1.running_var = torch.index_select(bn_var1, dim=0, index=pindex2)
+        batchnorm1.weight = nn.Parameter(torch.index_select(bn_weight1, dim=0, index=pindex1))
+        batchnorm1.bias = nn.Parameter(torch.index_select(bn_bias1, dim=0, index=pindex1))
+        batchnorm1.running_mean = torch.index_select(bn_mean1, dim=0, index=pindex1)
+        batchnorm1.running_var = torch.index_select(bn_var1, dim=0, index=pindex1)
         batchnorm1.num_features = len(batchnorm1.weight)
+    else:
+        conv11.weight = nn.Parameter(weight1.t().view(ws1[0], -1, ws1[2], ws1[3]))
 
-    conv12.weight = nn.Parameter(projection1.t().view(-1, pindex1.shape[0], 1, 1)) #TODO: check this one.
-    conv12.out_channels, conv12.in_channels = conv12.weight.size()[:2]
-
-
-def modify_network(net_current):
-    args = net_current.args
-    modules = []
-    for module_cur in net_current.modules():
-        if isinstance(module_cur, BasicBlock):
-            modules.append(module_cur)
-    # skip the first BasicBlock that deals with the input images
-    for module_cur in modules[1:]:
-        # embed()
-        # get initialization values for the Block to be compressed
-        weight1 = module_cur.state_dict()['0.weight']
-        bias1 = module_cur.state_dict()['0.bias']
-        if args.init_method.find('disturbance') >= 0:
-            weight1, projection1 = init_weight_proj(weight1, init_method=args.init_method, d=0, s=0.05)
-        else:
-            weight1, projection1 = init_weight_proj(weight1, init_method=args.init_method)
-        # modify submodules in the ResBlock
-        modify_submodules(module_cur)
-        # set ResBlock module params
-        params = edict({'weight1': weight1, 'projection1': projection1, 'bias1': bias1})
-        set_module_param(module_cur, params)
+    conv11.out_channels, conv11.in_channels = conv11.weight.size()[:2]
 
 
 def make_model(args, ckp, converging):
@@ -169,13 +139,14 @@ class Prune(VGG):
             self.input_dim = (3, 224, 224)
         self.flops, self.params = get_model_complexity_info(self, self.input_dim, print_per_layer_stat=False)
 
-        modify_network(self)
-
     def find_modules(self):
         return [m for m in self.modules() if isinstance(m, BasicBlock)][1:]
 
     def sparse_param(self, module):
-        param1 = module.state_dict(keep_vars=True)['0.1.weight']
+        param1 = module.state_dict(keep_vars=True)['0.weight']
+        ws1 = param1.shape
+        param1 = param1.viewindex_pre(ws1[0], -1).t()
+
         return param1
 
     def calc_regularization(self):
@@ -241,6 +212,7 @@ class Prune(VGG):
             scale2 = self.calc_sparsity_solution(param1.data, 0, reg, self.args.sparsity_regularizer)
             param1.data = torch.mul(scale2, param1.data.squeeze().t()).t().view(param1.shape)
 
+
     def compute_loss(self, batch, current_epoch, converging):
         """
         loss = ||Y - Yc||^2 + lambda * (||A_1||_{2,1} + ||A_2 ^T||_{2,1})
@@ -252,43 +224,35 @@ class Prune(VGG):
         loss_proj12 = []
         for l, m in enumerate(modules):
             projection1 = self.sparse_param(m)
-            # if batch % 100 == 0 and i == 0:
-            #     with print_array_on_one_line():
-            #         print('Norm1: \n{}'.format((torch.sum(projection1.squeeze().t() ** 2, dim=0) ** (q / 2)).detach().cpu().numpy()))
-            #         print('Norm2: \n{}'.format((torch.sum(projection2.squeeze().t() ** 2, dim=1) ** (q / 2)).detach().cpu().numpy()))
+
             loss_proj11.append(torch.sum(torch.sum(projection1.squeeze().t() ** 2, dim=1) ** (q / 2)) ** (1 / q))
             loss_proj12.append(torch.sum(torch.sum(projection1.squeeze().t() ** 2, dim=0) ** (q / 2)) ** (1 / q))
-            # embed()
-            if not converging and (batch + 1) % 200 == 0:
-                path = os.path.join(self.args.dir_save, self.args.save, 'ResBlock{}_norm_distribution'.format(l))
-                if not os.path.exists(path):
-                    os.makedirs(path)
-                filename1 = os.path.join(path, 'Row_Epoch{}_Batch{}'.format(current_epoch, batch + 1))
-                filename2 = os.path.join(path, 'Column_Epoch{}_Batch{}'.format(current_epoch, batch + 1))
-                plot_figure(projection1.squeeze().t(), l, filename1)
-                plot_figure(projection1.squeeze(), l, filename2)
+
         # print(loss_proj11[6], loss_proj12[6])
         lossp1 = sum(loss_proj11) #/ len(loss_proj11)
         lossp2 = sum(loss_proj12) #/ len(loss_proj12)
 
-        # loss_proj1 = torch.sum((torch.sum(projection1 ** 2, dim=0) ** q))
-        # loss_proj2 = torch.sum((torch.sum(projection2 ** 2, dim=1) ** q))
-        if self.args.optimizer == 'SGD':
-            lossp1 *= lambda_factor
-            lossp2 *= lambda_factor
+        lossp1 *= lambda_factor
+        lossp2 *= lambda_factor
+
         return lossp1, lossp2
 
     def index_pre(self, percentage, threshold):
         index = []
         for module_cur in self.find_modules():
-            conv12 = module_cur[0][1]
-            projection1 = conv12.weight.data.squeeze().t()
-            index.append(get_nonzero_index(projection1, dim='output', counter=1, percentage=percentage, threshold=threshold)[1])
+            conv11 = module_cur[0]
+            # projection1 = conv11.weight.data.squeeze().t()
+
+            ws1 = conv11.weight.shape
+            projection1 = conv11.weight.data.view(ws1[0], -1).t()
+
+            index.append(get_nonzero_index(projection1, dim='output', percentage=percentage, threshold=threshold)[1])
         return index
 
     def compress(self, **kwargs):
         index = [None] + self.index_pre(self.args.remain_percentage, self.args.threshold)
         for i, module_cur in enumerate(self.find_modules()):
+            print(module_cur)
             compress_module_param(module_cur, self.args.remain_percentage, self.args.threshold, index[i], i)
 
     def print_compress_info(self, epoch_continue):
