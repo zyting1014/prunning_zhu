@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import os
 import torch.nn.functional as F
+
 count_data = 0
 import numpy as np
 from torch.nn import init
@@ -18,7 +19,7 @@ class DConv2d(nn.Module):
         s = '{}(weight_size={}, '.format(self.__class__.__name__, self.weight.shape)
         bias_shape = None if self.bias is None else self.bias.shape
         if hasattr(self, 'projection'):
-            s += 'projection_size={}, bias_size={}, '.format(self.projection.shape,bias_shape)
+            s += 'projection_size={}, bias_size={}, '.format(self.projection.shape, bias_shape)
         else:
             s += 'bias_size={}, '.format(bias_shape)
         if hasattr(self, 'projection2'):
@@ -83,8 +84,10 @@ class DConv2d(nn.Module):
             features['middle'] = m.norm(dim=(2, 3)).mean(dim=0, keepdim=True)
         if self.__store_output__:
             features['output'] = y
-        torch.save(features, os.path.join(self.__save_dir__, 'Batch{}_Device{}.pt'.format(count_data, torch.cuda.current_device())))
-        print('{} {}, Data Batch {}, Device {}'.format(self.__class__.__name__, self.__count_layer__, count_data, torch.cuda.current_device()))
+        torch.save(features, os.path.join(self.__save_dir__,
+                                          'Batch{}_Device{}.pt'.format(count_data, torch.cuda.current_device())))
+        print('{} {}, Data Batch {}, Device {}'.format(self.__class__.__name__, self.__count_layer__, count_data,
+                                                       torch.cuda.current_device()))
 
     def feature_map_inter_norm(self, m):
         feat = m.detach().cpu().norm(dim=(2, 3)).mean(dim=0, keepdim=True)
@@ -105,26 +108,30 @@ class DConv2d(nn.Module):
     #         setattr(self, tn, feat_add)
 
 
-
 def default_conv(in_channels, out_channels, kernel_size=3, stride=1, bias=True, groups=1, args=None):
-    m = nn.Conv2d(in_channels, out_channels, kernel_size, padding=kernel_size // 2, stride=stride, bias=bias, groups=groups)
+    m = nn.Conv2d(in_channels, out_channels, kernel_size, padding=kernel_size // 2, stride=stride, bias=bias,
+                  groups=groups)
     return m
+
 
 def nopad_conv(
         in_channels, out_channels, kernel_size, stride=1, bias=True):
-
     return nn.Conv2d(
         in_channels, out_channels, kernel_size,
         padding=0, stride=stride, bias=bias)
 
+
 def default_linear(in_channels, out_channels, bias=True):
     return nn.Linear(in_channels, out_channels, bias=bias)
+
 
 def default_norm(in_channels):
     return nn.BatchNorm2d(in_channels)
 
+
 def default_act():
     return nn.ReLU(False)
+
 
 def init_vgg(net):
     for m in net.modules():
@@ -140,6 +147,7 @@ def init_vgg(net):
         elif isinstance(m, nn.Linear):
             m.weight.data.normal_(0, 0.01)
             m.bias.data.zero_()
+
 
 def init_kaiming(net):
     for m in net.modules():
@@ -163,6 +171,7 @@ class BasicBlock(nn.Sequential):
                    nn.ReLU(inplace=True)]
         super(BasicBlock, self).__init__(*modules)
 
+
 # class BasicBlock(nn.Module):
 #     def __init__(self, in_channels, out_channels, kernel_size, stride=1, bias=True, conv3x3=default_conv, args=None):
 #         super(BasicBlock, self).__init__()
@@ -170,6 +179,18 @@ class BasicBlock(nn.Sequential):
 #                    nn.BatchNorm2d(out_channels),
 #                    nn.ReLU()]
 #         self.layer = nn.Sequential(*modules)
-#     def forward(self, x):
-#         return self.layer(x)
+    # def forward(self, x):
+    #     return self.layer(x)
 
+# def forward(self, x):
+#     #     from util import utility
+#     #     timer = utility.timer()
+#     #     timer.hold()
+#     #
+#     #     x = self.layer(x)
+#     #
+#     #     timer.tic()
+#     #     print("timer :")
+#     #     print(timer.release())
+#     #
+#     #     return x

@@ -52,6 +52,7 @@ class VGG(nn.Module):
 
 
         # assert(args.data_train.find('CIFAR') >= 0)
+        self.body_list = body_list
         self.features = nn.Sequential(*body_list)
         if args.data_train.find('CIFAR') >= 0:
             n_classes = int(args.data_train[5:])
@@ -84,6 +85,9 @@ class VGG(nn.Module):
         #     self.load(args, strict=True)
 
     def forward(self, x):
+        # print("forward..")
+        # body_list = self.body_list
+        # print("body_list len: " + str(len(body_list)))
         x = self.features(x)
         x = x.view(x.size(0), -1)
         # print(x.shape)

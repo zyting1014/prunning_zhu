@@ -198,7 +198,7 @@ def get_nonzero_index(x, dim='output', counter=1, percentage=0.2, threshold=5e-3
         remain = x.shape[1]
     else:
         remain = x.shape[0]
-    t = n.sort().values[int(remain * 0.05)]
+    t = n.sort().values[int(remain * 0.025)]
     f = n > t  # > n.max() / 10
     f = torch.nonzero(f).squeeze(dim=1)
 

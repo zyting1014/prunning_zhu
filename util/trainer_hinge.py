@@ -1,6 +1,8 @@
 import torch
 import matplotlib
 import os
+
+from IPython import embed
 from tqdm import tqdm
 from tensorboardX import SummaryWriter
 from util import utility
@@ -46,83 +48,32 @@ class Trainer():
             self.writer = SummaryWriter(os.path.join(self.args.dir_save, self.args.save), comment='converging')
         self.epoch_continue = epoch_continue
 
+
     def train(self):
         epoch = self.start_epoch()
-        self.model.begin(epoch, self.ckp) #TODO: investigate why not using self.model.train() directly
+        self.model.begin(epoch, self.ckp)
         self.loss.start_log()
         # modules = self.model.get_model().find_modules() #TODO: merge this
         timer_data, timer_model = utility.timer(), utility.timer()
         n_samples = 0
 
         for batch, (img, label) in enumerate(self.loader_train):
+            # if batch<=1:
             img, label = self.prepare(img, label)
             n_samples += img.size(0)
 
             timer_data.hold()
             timer_model.tic()
 
-            # Forward pass and computing the loss function
             self.optimizer.zero_grad()
+            # embed()
             prediction = self.model(img)
             loss, _ = self.loss(prediction, label)
-            lossp = self.model.get_model().compute_loss(batch + 1, epoch, self.converging)
-            if not self.converging:
-                # use projection loss for SGD and don't use it for PG
-                if self.args.optimizer == 'SGD':
-                    loss = loss + sum(lossp)
-            else:
-                # use distillation loss
-                if self.args.distillation:
-                    with torch.no_grad():
-                        prediction_teacher = self.model_teacher(img)
-                    loss_distill = distillation(prediction, prediction_teacher, T=4)
-                    loss = loss_distill * 0.4 + loss * 0.6
 
-            # Backward pass and computing the gradients
-            # print("loss = " + str(loss))
             loss.backward()
-            # Update learning rate based on the gradients. ResNet20, 56, 164, and Wide ResNet
-
-            if not self.converging and self.lr_adjust_flag:
-                self.model.get_model().update_grad_ratio()
-                self.scheduler.running_grad_ratio = self.model.get_model().running_grad_ratio
-                for param_group, lr in zip(self.optimizer.param_groups, self.scheduler.get_lr()):
-                    param_group['lr'] = lr
-
-            # Update the parameters
-            if self.args.optimizer == 'SGD':
-                self.optimizer.step()
-            elif self.args.optimizer == 'PG':
-                # Gradient step
-                self.optimizer.step()
-                if not self.converging and (batch + 1) % self.args.prox_freq == 0:
-                    # Anneal the regularization factor
-                    reg = reg_anneal(lossp[0], self.args.regularization_factor, self.args.annealing_factor,
-                                     self.args.annealing_t1, self.args.annealing_t2)
-                    # Proximal step
-                    self.model.get_model().proximal_operator(self.scheduler.get_lr()[-1], batch+1, reg)
-            elif self.args.optimizer == 'APG': # TODO: still interesting to investigate APG
-                self.optimizer.converging = self.converging
-                self.optimizer.batch = batch + 1
-                self.optimizer.step()
+            self.optimizer.step()
 
             timer_model.hold()
-
-            if (batch + 1) % self.args.print_every == 0:
-                s = '{}/{} ({:.0f}%)\tTotal: {:.3f} / P1: {:.3f}'.\
-                    format(n_samples, len(self.loader_train.dataset),
-                           100.0 * n_samples / len(self.loader_train.dataset), loss, lossp[0])
-                if len(lossp) == 2:
-                    s += ' / P2: {:.3f}'.format(lossp[1])
-                if not self.converging:
-                    if self.lr_adjust_flag:
-                        s += ' / rP: {:.3f}'.format(self.model.get_model().running_grad_ratio)
-                else:
-                    if self.args.distillation:
-                        s += ' / Dis: {:.3f}'.format(loss_distill)
-                s += ' / NLL: {:.3f}\tTop1: {:.2f} / Top5: {:.2f}\tTime: {:.1f}+{:.1f}s'.\
-                    format(*(self.loss.log_train[-1, :] / n_samples), timer_model.release(), timer_data.release())
-                self.ckp.write_log(s)
 
             if self.args.summary:
                 if (batch + 1) % 50 == 0:

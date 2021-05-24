@@ -19,11 +19,10 @@ if checkpoint.ok:
 
     current_ratio, ratio_log = 1.0, []
 
-    while current_ratio - args.ratio > args.stop_limit and not t.terminate():
+    while current_ratio > args.ratio and current_ratio - args.ratio > args.stop_limit and not t.terminate():
         t.train()
         t.test()
         calc_model_complexity_running(my_model, False)
-
 
 
 
