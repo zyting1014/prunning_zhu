@@ -116,5 +116,3 @@ class Prune(VGG):
                     else:
                         own_state[name].data.copy_(param)
             self.set_channels()
-
-    from torchvision.models import vgg

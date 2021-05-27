@@ -13,9 +13,11 @@ if checkpoint.ok:
     loader = Data(args)
 
     my_model = Model(args, checkpoint)
+    model_teacher = Model(args, checkpoint, teacher=True) if args.distillation else None
+
     loss = Loss(args, checkpoint)
 
-    t = Trainer(args, loader, my_model, loss, checkpoint, None, False, None)
+    t = Trainer(args, loader, my_model, loss, checkpoint, None, False, model_teacher)
 
     current_ratio, ratio_log = 1.0, []
 

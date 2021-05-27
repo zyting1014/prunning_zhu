@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.utils.model_zoo as model_zoo
 from model import common
+from util import utility
 
 
 def make_model(args, parent=False):
@@ -83,12 +84,26 @@ class VGG(nn.Module):
 
         # if conv3x3 == common.default_conv or conv3x3 == nn.Conv2d:
         #     self.load(args, strict=True)
+        self.total_time = [0] * len(body_list)
+
+        for i in range(len(body_list)):
+            body_list[i] = nn.Sequential(body_list[i])
 
     def forward(self, x):
-        # print("forward..")
-        # body_list = self.body_list
-        # print("body_list len: " + str(len(body_list)))
-        x = self.features(x)
+        import time
+        body_list = self.body_list
+        # timer_model = utility.timer()
+
+        for i in range(len(body_list)):
+            layer = body_list[i]
+            begin_time = time.time()
+            x = layer(x)
+            end_time = time.time()
+            if isinstance(layer, common.BasicBlock):
+                self.total_time[i] += end_time - begin_time
+
+
+        # x = self.features(x)
         x = x.view(x.size(0), -1)
         # print(x.shape)
         x = self.classifier(x)

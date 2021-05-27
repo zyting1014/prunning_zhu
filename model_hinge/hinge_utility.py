@@ -201,7 +201,8 @@ def get_nonzero_index(x, dim='output', counter=1, percentage=0.2, threshold=5e-3
     t = n.sort().values[int(remain * 0.025)]
     f = n > t  # > n.max() / 10
     f = torch.nonzero(f).squeeze(dim=1)
-
+    # n : tensor([0.7407, 0.5850, 0.0783, 0.8555, 0.3237])
+    # f : tensor([0, 1, 3, 4])
     return n, f
 
 def get_nonzero_index2(x, dim='output', counter=1, percentage=0.2, threshold=5e-3, fix_channel=0):

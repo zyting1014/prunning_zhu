@@ -132,7 +132,9 @@ parser.add_argument('--gamma', type=float, default=0.1,
                     help='learning rate decay factor')
 parser.add_argument('--optimizer', type=str, default='SGD', choices=['SGD', 'Adam', 'PG', 'APG', 'RMSprop'],
                     help='optimizer to use. SGD for image classification, PG for the Hinge method')
-parser.add_argument('--momentum', type=float, default=0.9,
+# parser.add_argument('--momentum', type=float, default=0.9,
+#                     help='SGD momentum')
+parser.add_argument('--momentum', type=float, default=0.1,
                     help='SGD momentum')
 parser.add_argument('--nesterov', action='store_true',
                     help='enable nesterov momentum')

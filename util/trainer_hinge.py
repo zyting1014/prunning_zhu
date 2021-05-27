@@ -27,6 +27,15 @@ class Trainer():
 
         self.optimizer = utility.make_optimizer_hinge(args, self.model, ckp, self.converging, self.lr_adjust_flag)
         self.scheduler = utility.make_scheduler_hinge(args, self.optimizer, self.converging, self.lr_adjust_flag)
+
+        # if self.args.optimizer != 'SGD':
+        #     self.optimizer = utility.make_optimizer_hinge(args, self.model, ckp, self.converging, self.lr_adjust_flag)
+        #     self.scheduler = utility.make_scheduler_hinge(args, self.optimizer, self.converging, self.lr_adjust_flag)
+        # else:
+        #     # 单纯训练一个网络
+        #     self.optimizer = utility.make_optimizer(args, self.model, ckp=ckp)
+        #     self.scheduler = utility.make_scheduler(args, self.optimizer)
+
         self.device = torch.device('cpu' if args.cpu else 'cuda')
 
         if args.model.find('INQ') >= 0:
@@ -70,6 +79,12 @@ class Trainer():
             prediction = self.model(img)
             loss, _ = self.loss(prediction, label)
 
+            if self.args.distillation:
+                with torch.no_grad():
+                    prediction_teacher = self.model_teacher(img)
+                loss_distill = distillation(prediction, prediction_teacher, T=4)
+                loss = loss_distill * 0.4 + loss * 0.6
+
             loss.backward()
             self.optimizer.step()
 
@@ -94,6 +109,18 @@ class Trainer():
                                                           1000 * (epoch - 1) + batch)
 
             timer_data.tic()
+
+
+        print(" timer_data : ")
+        print(timer_data.toc())
+        print("timer_model : ")
+        print(timer_model.toc())
+
+        # print("total time : ")
+        # print(self.model.get_model().total_time)
+        # print("sum : ")
+        # print(sum(self.model.get_model().total_time))
+        self.model.get_model().total_time = [0] * len(self.model.get_model().body_list)
         self.model.log(self.ckp)
         self.loss.end_log(len(self.loader_train.dataset))
 
