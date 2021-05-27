@@ -6,7 +6,7 @@ from util import template
 parser.add_argument('--prune_procedure', default='complete', choices=['complete', 'undergoing', 'final'],
                     help='pruning procedure.')
 parser.add_argument('--prune_weight_decay', type=float, default=0.001,
-                    help='weight decay during pruning phase.')
+                    help='weight decay during--distillation pruning phase.')
 parser.add_argument('--prune_decay', type=str, default='step-100-200-300',
                     help='decay step during pruning phase')
 parser.add_argument('--prune_lr', type=float, default=0.1,

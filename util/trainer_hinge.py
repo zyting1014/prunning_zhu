@@ -10,6 +10,7 @@ from model_hinge.hinge_utility import reg_anneal
 from loss import distillation
 matplotlib.use('Agg')
 #from IPython import embed
+timer_test_list = []
 
 
 class Trainer():
@@ -110,21 +111,17 @@ class Trainer():
 
             timer_data.tic()
 
-
         print(" timer_data : ")
         print(timer_data.toc())
         print("timer_model : ")
         print(timer_model.toc())
 
-        # print("total time : ")
-        # print(self.model.get_model().total_time)
-        # print("sum : ")
-        # print(sum(self.model.get_model().total_time))
-        self.model.get_model().total_time = [0] * len(self.model.get_model().body_list)
         self.model.log(self.ckp)
         self.loss.end_log(len(self.loader_train.dataset))
 
     def test(self):
+        self.model.get_model().total_time = [0] * len(self.model.get_model().body_list)
+
         epoch = self.scheduler.last_epoch + 1
         self.ckp.write_log('\nEvaluation:')
         self.loss.start_log(train=False)
@@ -151,7 +148,8 @@ class Trainer():
             self.ckp.write_log('\nBest during searching')
             for i, measure in enumerate(('Loss', 'Top1 error', 'Top5 error')):
                 self.ckp.write_log('{}: {:.3f} from epoch {}'.format(measure, best[0][i], best[1][i]))
-        self.ckp.write_log('Time: {:.2f}s\n'.format(timer_test.toc()), refresh=True)
+        current_time = timer_test.toc()
+        self.ckp.write_log('Time: {:.2f}s\n'.format(current_time), refresh=True)
 
         is_best = self.loss.log_test[-1, self.args.top] <= best[0][self.args.top]
         self.ckp.save(self, epoch, converging=self.converging, is_best=is_best)
@@ -161,17 +159,15 @@ class Trainer():
         # scheduler.step is moved from training procedure to test procedure
         self.scheduler.step()
 
-        # modules = [m for m in self.model.get_model().modules() if isinstance(m, ResBlock)]
-        # from model.prune_utility import print_array_on_one_line
-        # for i, m in enumerate(modules):
-        #     if i in [4, 8, 13, 17, 22, 26]:
-        #         w1 = m._modules['body']._modules['0']._modules['1'].weight.squeeze().t()
-        #         n1 = torch.norm(w1, p=2, dim=0)
-        #         w2 = m._modules['body']._modules['3']._modules['1'].weight.squeeze().t()
-        #         n2 = torch.norm(w2, p=2, dim=1)
-        #         with print_array_on_one_line():
-        #             print('Norm of Projection1 {}'.format(n1.detach().cpu().numpy()))
-        #             print('Norm of Projection2 {}\n'.format(n2.detach().cpu().numpy()))
+        timer_test_list.append("{:.2f}".format(current_time))
+        print("whole network inference time : ")
+        print(timer_test_list)
+
+        print("以下是不靠谱的...")
+        print("total time : ")
+        print(self.model.get_model().total_time)
+        print("sum : ")
+        print(sum(self.model.get_model().total_time))
 
     def prepare(self, *args):
         def _prepare(x):

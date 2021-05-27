@@ -10,7 +10,9 @@ import copy
 import matplotlib.pyplot as plt
 from model.in_use.flops_counter import get_model_complexity_info
 from contextlib import contextmanager
-#from IPython import embed
+
+
+# from IPython import embed
 
 
 ########################################################################################################################
@@ -191,6 +193,14 @@ def print_array_on_one_line():
 # select the remaining channels
 ########################################################################################################################
 
+def get_nonzero_index_spec_layer_num(x, num):
+    n = torch.norm(x, p=2, dim=0)
+    t = n.sort().values[0]
+    f = n > t
+    f = torch.nonzero(f).squeeze(dim=1)
+    return n, f
+
+
 def get_nonzero_index(x, dim='output', counter=1, percentage=0.2, threshold=5e-3, fix_channel=0):
     n = torch.norm(x, p=2, dim=0 if dim == 'output' else 1)
     remain = 0
@@ -205,7 +215,9 @@ def get_nonzero_index(x, dim='output', counter=1, percentage=0.2, threshold=5e-3
     # f : tensor([0, 1, 3, 4])
     return n, f
 
-def get_nonzero_index2(x, dim='output', counter=1, percentage=0.2, threshold=5e-3, fix_channel=0):
+
+def get_nonzero_index_origin(x, dim='output', counter=1, percentage=0.2, threshold=5e-3, fix_channel=0):
+    # group_sparsity的方法
     n = torch.norm(x, p=2, dim=0 if dim == 'output' else 1)
     if fix_channel == 0:
         if n.max() == 0:
@@ -239,18 +251,9 @@ def get_nonzero_index2(x, dim='output', counter=1, percentage=0.2, threshold=5e-
             else:
                 f = n >= t
                 f = torch.nonzero(f).squeeze(dim=1)
-        #print('{:<2}, {:2.8f}, {:2.8f}'.format(f.shape[0], t, n.max()))
+        # print('{:<2}, {:2.8f}, {:2.8f}'.format(f.shape[0], t, n.max()))
 
-    # global resblock_counter, global_step
-    # writer.add_histogram('ResBlock{}_index{}'.format(resblock_counter, counter), n, global_step=global_step, bins=10)
-    # global_step += 1
-    # print(x[1, :5].detach().cpu().numpy())
-    # if counter ==1:
-        # with print_array_on_one_line():
-        #     print('Norm of Projection1: {}.'.format(n.detach().cpu().numpy()))
-    # print(f.detach().cpu().numpy())
     return n, f
-
 
 
 ########################################################################################################################
@@ -260,7 +263,7 @@ def get_nonzero_index2(x, dim='output', counter=1, percentage=0.2, threshold=5e-
 # used by compute_loss method in the hinge_** functions
 def plot_figure(filter_matrix, l, filename):
     filter_matrix = torch.norm(filter_matrix, dim=0)
-    axis = np.array(list(range(1, filter_matrix.shape[0]+1)))
+    axis = np.array(list(range(1, filter_matrix.shape[0] + 1)))
     filter_matrix = filter_matrix.detach().cpu().numpy()
     fig = plt.figure()
     plt.title('Layer {}, Max: {:.4f}, Ave: {:.4f}, Min: {:.4f}'.
@@ -316,17 +319,20 @@ def plot_per_layer_compression_ratio(ratio_per_layer, filename):
 def calc_model_complexity(model):
     model = model.get_model()
     model.flops_compress, model.params_compress = get_model_complexity_info(model, model.input_dim,
-                                                                           print_per_layer_stat=False)
+                                                                            print_per_layer_stat=False)
     print('FLOPs ratio {:.2f} = {:.4f} [G] / {:.4f} [G]; Parameter ratio {:.2f} = {:.2f} [k] / {:.2f} [k].'
           .format(model.flops_compress / model.flops * 100, model.flops_compress / 10. ** 9, model.flops / 10. ** 9,
-                  model.params_compress / model.params * 100, model.params_compress / 10. ** 3, model.params / 10. ** 3))
+                  model.params_compress / model.params * 100, model.params_compress / 10. ** 3,
+                  model.params / 10. ** 3))
 
+def calc_model_complexity_running_new(model, epoch):
+    state = copy.deepcopy(model.get_model().state_dict())
+    model.get_model().compress_one_layer(0, epoch)
+    calc_model_complexity(model)
 
 def calc_model_complexity_running(model, merge_flag=False):
-
     state = copy.deepcopy(model.get_model().state_dict())
     model.get_model().compress()
-
     calc_model_complexity(model)
     # model.get_model().load_state_dict(state, strict=False)
 

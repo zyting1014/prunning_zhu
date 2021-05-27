@@ -3,6 +3,7 @@ import torch.nn as nn
 from model.vgg import VGG
 from model.common import BasicBlock
 from model_hinge.hinge_utility import init_weight_proj, get_nonzero_index, plot_figure, plot_per_layer_compression_ratio
+from model_hinge.hinge_utility import get_nonzero_index_spec_layer_num
 from model.in_use.flops_counter import get_model_complexity_info
 
 
@@ -116,3 +117,56 @@ class Prune(VGG):
                     else:
                         own_state[name].data.copy_(param)
             self.set_channels()
+
+    def compress_one_layer(self, layer_num, prun_pum, **kwargs):
+        print("要剪枝的卷积层 ：" + str(layer_num))
+        print("剪枝的filter数 ： " + str(prun_pum))
+
+        modules = [m for m in self.modules() if isinstance(m, BasicBlock)][0:]
+
+        cur_layer = modules[layer_num]
+        next_layer = modules[layer_num + 1]
+
+        # cur_layer = self.find_modules()[layer_num]
+        # next_layer = self.find_modules()[layer_num + 1]
+
+        print("当前层： ")
+        print(cur_layer)
+        print("下一层 : ")
+        print(next_layer)
+
+        conv11 = cur_layer[0]
+        batchnorm1 = cur_layer[1]
+        ws1 = conv11.weight.shape
+        weight1 = conv11.weight.data.view(ws1[0], -1).t()
+        bias1 = conv11.bias.data if conv11.bias is not None else None
+        bn_weight1 = batchnorm1.weight.data
+        bn_bias1 = batchnorm1.bias.data
+        bn_mean1 = batchnorm1.running_mean.data
+        bn_var1 = batchnorm1.running_var.data
+
+        pindex1 = get_nonzero_index_spec_layer_num(weight1, prun_pum)[1]
+
+        # conv current layer
+        weight1 = torch.index_select(weight1, dim=1, index=pindex1)
+        conv11.bias = nn.Parameter(torch.index_select(bias1, dim=0, index=pindex1))
+        conv11.weight = nn.Parameter(weight1.t().view(pindex1.shape[0], -1, ws1[2], ws1[3]))
+        batchnorm1.weight = nn.Parameter(torch.index_select(bn_weight1, dim=0, index=pindex1))
+        batchnorm1.bias = nn.Parameter(torch.index_select(bn_bias1, dim=0, index=pindex1))
+        batchnorm1.running_mean = torch.index_select(bn_mean1, dim=0, index=pindex1)
+        batchnorm1.running_var = torch.index_select(bn_var1, dim=0, index=pindex1)
+        batchnorm1.num_features = len(batchnorm1.weight)
+        conv11.out_channels, conv11.in_channels = conv11.weight.size()[:2]
+
+        # conv next layer
+        conv12 = next_layer[0]
+        ws2 = conv12.weight.shape
+        weight2 = conv12.weight.data.view(ws2[0], -1).t()
+
+        pindex2 = torch.repeat_interleave(pindex1, ws2[2] * ws2[3]) * ws2[2] * ws2[3] \
+                + torch.tensor(range(0, ws2[2] * ws2[3])).repeat(pindex1.shape[0]).cuda()
+
+        weight2 = torch.index_select(weight2, dim=0, index=pindex2)
+
+        conv12.weight = nn.Parameter(weight2.t().view(ws2[0], -1, ws2[2], ws2[3]))
+        conv12.in_channels = conv12.weight.size()[1]
