@@ -85,9 +85,10 @@ class VGG(nn.Module):
         # if conv3x3 == common.default_conv or conv3x3 == nn.Conv2d:
         #     self.load(args, strict=True)
         self.total_time = [0] * len(body_list)
+        self.top1_err_list = []
 
-        for i in range(len(body_list)):
-            body_list[i] = nn.Sequential(body_list[i])
+        # for i in range(len(body_list)):
+        #     body_list[i] = nn.Sequential(body_list[i])
 
     def forward(self, x):
         import time
@@ -96,11 +97,12 @@ class VGG(nn.Module):
 
         for i in range(len(body_list)):
             layer = body_list[i]
+            layer = nn.Sequential(layer)
             begin_time = time.time()
             x = layer(x)
             end_time = time.time()
-            if isinstance(layer, common.BasicBlock):
-                self.total_time[i] += end_time - begin_time
+            if isinstance(body_list[i], common.BasicBlock):
+                self.total_time[i] += float(end_time - begin_time)
 
 
         # x = self.features(x)

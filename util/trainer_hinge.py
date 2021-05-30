@@ -111,17 +111,17 @@ class Trainer():
 
             timer_data.tic()
 
-        print(" timer_data : ")
-        print(timer_data.toc())
-        print("timer_model : ")
-        print(timer_model.toc())
+        # print(" timer_data : ")
+        # print(timer_data.toc())
+        # print("timer_model : ")
+        # print(timer_model.toc())
 
         self.model.log(self.ckp)
         self.loss.end_log(len(self.loader_train.dataset))
 
+
     def test(self):
         self.model.get_model().total_time = [0] * len(self.model.get_model().body_list)
-
         epoch = self.scheduler.last_epoch + 1
         self.ckp.write_log('\nEvaluation:')
         self.loss.start_log(train=False)
@@ -159,15 +159,22 @@ class Trainer():
         # scheduler.step is moved from training procedure to test procedure
         self.scheduler.step()
 
+        # 下面是新加的统计内容
         timer_test_list.append("{:.2f}".format(current_time))
         print("whole network inference time : ")
         print(timer_test_list)
 
-        print("以下是不靠谱的...")
-        print("total time : ")
+        print("each layer time: ")
+        for i in range(len(self.model.get_model().total_time)):
+            self.model.get_model().total_time[i] = float("{:.5f}".format(self.model.get_model().total_time[i]))
         print(self.model.get_model().total_time)
         print("sum : ")
-        print(sum(self.model.get_model().total_time))
+        print("{:.5f}".format(sum(self.model.get_model().total_time)))
+
+        self.model.get_model().top1_err_list.append("{:.3f}".format(self.loss.log_test[-1, 1]))
+        print("top1 error list : ")
+        print(self.model.get_model().top1_err_list)
+
 
     def prepare(self, *args):
         def _prepare(x):

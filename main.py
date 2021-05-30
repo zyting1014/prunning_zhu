@@ -28,11 +28,11 @@ if checkpoint.ok:
         t.train()
         t.test()
         # 剪一层
-        calc_model_complexity_running_new(my_model, t.scheduler.last_epoch)
+        # calc_model_complexity_running_new(my_model, t.scheduler.last_epoch)
         # 剪整个network
-        # calc_model_complexity_running(my_model, False)
+        calc_model_complexity_running(my_model, False)
         current_ratio = my_model.get_model().flops_compress / my_model.get_model().flops
-        current_ratio_list.append(current_ratio)
+        current_ratio_list.append("{:.4f}".format(current_ratio))
         print("current_ratio_list : ")
         print(current_ratio_list)
 

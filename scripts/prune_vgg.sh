@@ -6,7 +6,7 @@ MODEL=Prune_VGG
 RATIO=0.50
 TEMPLATE=CIFAR10
 EPOCH=300
-CHECKPOINT=${MODEL}_${TEMPLATE}_LR${EPOCH}_${RATIO}
+CHECKPOINT=${MODEL}_${TEMPLATE}_EPOCH${EPOCH}_${RATIO}
 echo $CHECKPOINT
 CUDA_VISIBLE_DEVICES=0 python ../main.py --save $CHECKPOINT --template "linear3_${TEMPLATE}_VGG" --model ${MODEL} --vgg_type 16 --batch_size 64 \
 --epochs ${EPOCH} \

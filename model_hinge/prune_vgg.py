@@ -3,8 +3,10 @@ import torch.nn as nn
 from model.vgg import VGG
 from model.common import BasicBlock
 from model_hinge.hinge_utility import init_weight_proj, get_nonzero_index, plot_figure, plot_per_layer_compression_ratio
-from model_hinge.hinge_utility import get_nonzero_index_spec_layer_num
+from model_hinge.hinge_utility import get_nonzero_index_spec_layer_num, calc_model_complexity
 from model.in_use.flops_counter import get_model_complexity_info
+import math
+import numpy as np
 
 
 def compress_module_param(module, percentage, threshold, index_pre=None, i=0):
@@ -46,6 +48,10 @@ def compress_module_param(module, percentage, threshold, index_pre=None, i=0):
 
 def make_model(args, ckp, converging):
     return Prune(args, ckp, converging)
+
+
+def findMinGroup(self, G_MWG):
+    return 0, 0
 
 
 class Prune(VGG):
@@ -164,9 +170,43 @@ class Prune(VGG):
         weight2 = conv12.weight.data.view(ws2[0], -1).t()
 
         pindex2 = torch.repeat_interleave(pindex1, ws2[2] * ws2[3]) * ws2[2] * ws2[3] \
-                + torch.tensor(range(0, ws2[2] * ws2[3])).repeat(pindex1.shape[0]).cuda()
+                  + torch.tensor(range(0, ws2[2] * ws2[3])).repeat(pindex1.shape[0]).cuda()
 
         weight2 = torch.index_select(weight2, dim=0, index=pindex2)
 
         conv12.weight = nn.Parameter(weight2.t().view(ws2[0], -1, ws2[2], ws2[3]))
         conv12.in_channels = conv12.weight.size()[1]
+
+    def algorithm(self, P, ratio):
+        # 输入：预训练包含滤波器集合F的网络
+        # 每组滤波器由几个滤波器组成 ：P
+        # 输出：剪枝后的包含滤波器集合F'的网络
+        index = []
+        G_MWG = {}  # {key : layer_num#channel_num#P, value : importance}
+
+        # 计算每组filter的重要性
+        for layer, module_cur in enumerate(self.find_modules()):
+            conv11 = module_cur[0]
+            ws1 = conv11.weight.shape
+            projection1 = conv11.weight.data.view(ws1[0], -1).t()  # reshape (input * k * k,output)
+            Fl = torch.norm(projection1, p=2, dim=0)  # shape : output
+            # FR eg: tensor([0, 2, 3, 1])
+            FR = Fl.sort()[1]  # 每个filter在当前层的重要性排序 按二范数升序排列 越小越容易被剪枝
+            filter_num = FR.shape[0]
+            print("FR : ")
+            print(FR)
+            cluster_num = math.ceil(filter_num / P)
+            factors = np.zeros(cluster_num)
+            for i in range(filter_num):  # 当前层第i名
+                filter_indice = FR[i]  # 对应的index索引
+                factors[int(filter_indice / P)] = factors[int(filter_indice / P)] + (Fl[filter_indice] * i) / P
+            for cluster in range(cluster_num):
+                key = str(layer) + '#' + str(cluster) + '#' + str(P)
+                G_MWG[key] = factors[cluster]
+            print("factors : ")
+            print(factors)
+
+        current_ratio = 1.0
+
+        while current_ratio > ratio:
+            (prun_layer, prun_group) = findMinGroup(G_MWG)
