@@ -50,8 +50,11 @@ def make_model(args, ckp, converging):
     return Prune(args, ckp, converging)
 
 
-def findMinGroup(self, G_MWG):
-    return 0, 0
+def findMinGroup(G_MWG):
+    key = min(G_MWG, key=lambda x: G_MWG[x])
+    layer_num = int(key.split("#")[0])
+    group_num = int(key.split("#")[1])
+    return layer_num, group_num, key
 
 
 class Prune(VGG):
@@ -127,19 +130,14 @@ class Prune(VGG):
     def compress_one_layer(self, layer_num, prun_pum, **kwargs):
         print("要剪枝的卷积层 ：" + str(layer_num))
         print("剪枝的filter数 ： " + str(prun_pum))
+        print("pindex1 shape: " + str(kwargs['pindex1'].shape[0]))
 
-        modules = [m for m in self.modules() if isinstance(m, BasicBlock)][0:]
+        # modules = [m for m in self.modules() if isinstance(m, BasicBlock)][0:]
+        # cur_layer = modules[layer_num]
+        # next_layer = modules[layer_num + 1]
 
-        cur_layer = modules[layer_num]
-        next_layer = modules[layer_num + 1]
-
-        # cur_layer = self.find_modules()[layer_num]
-        # next_layer = self.find_modules()[layer_num + 1]
-
-        print("当前层： ")
-        print(cur_layer)
-        print("下一层 : ")
-        print(next_layer)
+        cur_layer = self.find_modules()[layer_num]
+        next_layer = self.find_modules()[layer_num + 1]
 
         conv11 = cur_layer[0]
         batchnorm1 = cur_layer[1]
@@ -151,7 +149,10 @@ class Prune(VGG):
         bn_mean1 = batchnorm1.running_mean.data
         bn_var1 = batchnorm1.running_var.data
 
-        pindex1 = get_nonzero_index_spec_layer_num(weight1, prun_pum)[1]
+        if kwargs['pindex1'] is None:
+            pindex1 = get_nonzero_index_spec_layer_num(weight1, prun_pum)[1]
+        else:
+            pindex1 = kwargs['pindex1']
 
         # conv current layer
         weight1 = torch.index_select(weight1, dim=1, index=pindex1)
@@ -177,15 +178,15 @@ class Prune(VGG):
         conv12.weight = nn.Parameter(weight2.t().view(ws2[0], -1, ws2[2], ws2[3]))
         conv12.in_channels = conv12.weight.size()[1]
 
-    def algorithm(self, P, ratio):
+    def algorithm(self, t, P, ratio):
         # 输入：预训练包含滤波器集合F的网络
         # 每组滤波器由几个滤波器组成 ：P
         # 输出：剪枝后的包含滤波器集合F'的网络
-        index = []
+        # index = []
         G_MWG = {}  # {key : layer_num#channel_num#P, value : importance}
 
         # 计算每组filter的重要性
-        for layer, module_cur in enumerate(self.find_modules()):
+        for layer, module_cur in enumerate(self.find_modules()[:11]): # 不剪最后一层
             conv11 = module_cur[0]
             ws1 = conv11.weight.shape
             projection1 = conv11.weight.data.view(ws1[0], -1).t()  # reshape (input * k * k,output)
@@ -193,8 +194,8 @@ class Prune(VGG):
             # FR eg: tensor([0, 2, 3, 1])
             FR = Fl.sort()[1]  # 每个filter在当前层的重要性排序 按二范数升序排列 越小越容易被剪枝
             filter_num = FR.shape[0]
-            print("FR : ")
-            print(FR)
+            # print("FR : ")
+            # print(FR)
             cluster_num = math.ceil(filter_num / P)
             factors = np.zeros(cluster_num)
             for i in range(filter_num):  # 当前层第i名
@@ -203,10 +204,35 @@ class Prune(VGG):
             for cluster in range(cluster_num):
                 key = str(layer) + '#' + str(cluster) + '#' + str(P)
                 G_MWG[key] = factors[cluster]
-            print("factors : ")
-            print(factors)
+            # print("factors : ")
+            # print(factors)
 
         current_ratio = 1.0
 
         while current_ratio > ratio:
-            (prun_layer, prun_group) = findMinGroup(G_MWG)
+            t.train()
+            t.test()
+            (layer_num, group_num, key) = findMinGroup(G_MWG)
+            del G_MWG[key] # 删除该元素
+            print("prun layer :%d, group : %d" % (layer_num, group_num))
+            cur_layer = self.find_modules()[layer_num]
+            conv11 = cur_layer[0]
+            ws1 = conv11.weight.shape
+            weight1 = conv11.weight.data.view(ws1[0], -1).t()
+            pindex1 = torch.ones(weight1.shape[1]).to(weight1.device)
+            pindex1[group_num * P:group_num * P + P] = 0
+            pindex1 = torch.nonzero(pindex1).squeeze(dim=1)
+            self.compress_one_layer(layer_num, -1, pindex1=pindex1)
+
+            # calc_model_complexity(self)
+
+            self.flops_compress, self.params_compress = get_model_complexity_info(self, self.input_dim,
+                                                                                    print_per_layer_stat=False)
+            print('FLOPs ratio {:.2f} = {:.4f} [G] / {:.4f} [G]; Parameter ratio {:.2f} = {:.2f} [k] / {:.2f} [k].'
+                  .format(self.flops_compress / self.flops * 100, self.flops_compress / 10. ** 9,
+                          self.flops / 10. ** 9,
+                          self.params_compress / self.params * 100, self.params_compress / 10. ** 3,
+                          self.params / 10. ** 3))
+
+            current_ratio = self.flops_compress / self.flops
+            print(" current_ratio : %f" % current_ratio)
