@@ -170,7 +170,9 @@ class Trainer():
         print(self.model.get_model().total_time)
         print("sum : ")
         print("{:.5f}".format(sum(self.model.get_model().total_time)))
-
+        self.model.get_model().sum_list.append("{:.5f}".format(sum(self.model.get_model().total_time)))
+        print("sum list : ")
+        print(self.model.get_model().sum_list)
         self.model.get_model().top1_err_list.append("{:.3f}".format(self.loss.log_test[-1, 1]))
         print("top1 error list : ")
         print(self.model.get_model().top1_err_list)

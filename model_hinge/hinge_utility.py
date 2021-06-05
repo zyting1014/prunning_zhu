@@ -195,7 +195,7 @@ def print_array_on_one_line():
 
 def get_nonzero_index_spec_layer_num(x, num):
     n = torch.norm(x, p=2, dim=0)
-    t = n.sort().values[0]
+    t = n.sort().values[0]  # 只修剪一个filter
     f = n > t
     f = torch.nonzero(f).squeeze(dim=1)
     return n, f

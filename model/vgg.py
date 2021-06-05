@@ -86,24 +86,23 @@ class VGG(nn.Module):
         #     self.load(args, strict=True)
         self.total_time = [0] * len(body_list)
         self.top1_err_list = []
+        self.sum_list = []
 
         # for i in range(len(body_list)):
         #     body_list[i] = nn.Sequential(body_list[i])
 
     def forward(self, x):
-        import time
         body_list = self.body_list
-        # timer_model = utility.timer()
+        timer = utility.timer()
 
         for i in range(len(body_list)):
             layer = body_list[i]
             layer = nn.Sequential(layer)
-            begin_time = time.time()
+            timer.tic()
             x = layer(x)
-            end_time = time.time()
-            if isinstance(body_list[i], common.BasicBlock):
-                self.total_time[i] += float(end_time - begin_time)
-
+            self.total_time[i] += timer.toc()
+            # if isinstance(body_list[i], common.BasicBlock):
+            #     self.total_time[i] += float(end_time - begin_time)
 
         # x = self.features(x)
         x = x.view(x.size(0), -1)

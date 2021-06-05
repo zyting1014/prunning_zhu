@@ -130,7 +130,6 @@ class Prune(VGG):
     def compress_one_layer(self, layer_num, prun_pum, **kwargs):
         print("要剪枝的卷积层 ：" + str(layer_num))
         print("剪枝的filter数 ： " + str(prun_pum))
-        print("pindex1 shape: " + str(kwargs['pindex1'].shape[0]))
 
         # modules = [m for m in self.modules() if isinstance(m, BasicBlock)][0:]
         # cur_layer = modules[layer_num]
@@ -149,9 +148,10 @@ class Prune(VGG):
         bn_mean1 = batchnorm1.running_mean.data
         bn_var1 = batchnorm1.running_var.data
 
-        if kwargs['pindex1'] is None:
+        if 'pindex1' not in kwargs:
             pindex1 = get_nonzero_index_spec_layer_num(weight1, prun_pum)[1]
         else:
+            print("pindex1 shape: " + str(kwargs['pindex1'].shape[0]))
             pindex1 = kwargs['pindex1']
 
         # conv current layer
@@ -183,10 +183,11 @@ class Prune(VGG):
         # 每组滤波器由几个滤波器组成 ：P
         # 输出：剪枝后的包含滤波器集合F'的网络
         # index = []
+        current_ratio_list = []
         G_MWG = {}  # {key : layer_num#channel_num#P, value : importance}
 
         # 计算每组filter的重要性
-        for layer, module_cur in enumerate(self.find_modules()[:11]): # 不剪最后一层
+        for layer, module_cur in enumerate(self.find_modules()[:11]):  # 不剪最后一层
             conv11 = module_cur[0]
             ws1 = conv11.weight.shape
             projection1 = conv11.weight.data.view(ws1[0], -1).t()  # reshape (input * k * k,output)
@@ -212,8 +213,14 @@ class Prune(VGG):
         while current_ratio > ratio:
             t.train()
             t.test()
+            current_ratio = self.get_model().flops_compress / self.get_model().flops
+            current_ratio_list.append("{:.4f}".format(current_ratio))
+            print("current_ratio_list : ")
+            print(current_ratio_list)
+            # 以上是常规操作
+            ######################################################
             (layer_num, group_num, key) = findMinGroup(G_MWG)
-            del G_MWG[key] # 删除该元素
+            del G_MWG[key]  # 删除该元素
             print("prun layer :%d, group : %d" % (layer_num, group_num))
             cur_layer = self.find_modules()[layer_num]
             conv11 = cur_layer[0]
@@ -227,7 +234,7 @@ class Prune(VGG):
             # calc_model_complexity(self)
 
             self.flops_compress, self.params_compress = get_model_complexity_info(self, self.input_dim,
-                                                                                    print_per_layer_stat=False)
+                                                                                  print_per_layer_stat=False)
             print('FLOPs ratio {:.2f} = {:.4f} [G] / {:.4f} [G]; Parameter ratio {:.2f} = {:.2f} [k] / {:.2f} [k].'
                   .format(self.flops_compress / self.flops * 100, self.flops_compress / 10. ** 9,
                           self.flops / 10. ** 9,
