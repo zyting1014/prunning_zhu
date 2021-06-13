@@ -42,7 +42,7 @@ def get_loader(args, kwargs):
             download=True,
             transform=transform_test),
         batch_size=500, shuffle=False, **kwargs
-    )
+    ) # batch_size default是500
 
     return loader_train, loader_test
 

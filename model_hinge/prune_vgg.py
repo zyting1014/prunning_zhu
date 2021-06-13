@@ -128,19 +128,19 @@ class Prune(VGG):
             self.set_channels()
 
     def compress_one_layer(self, layer_num, prun_pum, **kwargs):
-        print("要剪枝的卷积层 ：" + str(layer_num))
+        print("要剪枝的BasicBlock卷积层编号 ：" + str(layer_num))
         print("剪枝的filter数 ： " + str(prun_pum))
 
-        # modules = [m for m in self.modules() if isinstance(m, BasicBlock)][0:]
-        # cur_layer = modules[layer_num]
-        # next_layer = modules[layer_num + 1]
+        modules = [m for m in self.modules() if isinstance(m, BasicBlock)][0:]
+        cur_layer = modules[layer_num]
+        next_layer = modules[layer_num + 1]
 
-        cur_layer = self.find_modules()[layer_num]
-        next_layer = self.find_modules()[layer_num + 1]
+        # cur_layer = self.find_modules()[layer_num]
+        # next_layer = self.find_modules()[layer_num + 1]
 
         conv11 = cur_layer[0]
         batchnorm1 = cur_layer[1]
-        ws1 = conv11.weight.shape
+        ws1 = conv11.weight.shape  # (output, input, kernel_size, kernel_size)
         weight1 = conv11.weight.data.view(ws1[0], -1).t()
         bias1 = conv11.bias.data if conv11.bias is not None else None
         bn_weight1 = batchnorm1.weight.data
@@ -209,11 +209,12 @@ class Prune(VGG):
             # print(factors)
 
         current_ratio = 1.0
+        self.flops_compress = self.flops
 
         while current_ratio > ratio:
             t.train()
             t.test()
-            current_ratio = self.get_model().flops_compress / self.get_model().flops
+            current_ratio = self.flops_compress / self.flops
             current_ratio_list.append("{:.4f}".format(current_ratio))
             print("current_ratio_list : ")
             print(current_ratio_list)

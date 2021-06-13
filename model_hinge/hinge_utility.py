@@ -325,9 +325,13 @@ def calc_model_complexity(model):
                   model.params_compress / model.params * 100, model.params_compress / 10. ** 3,
                   model.params / 10. ** 3))
 
-def calc_model_complexity_running_new(model, epoch):
+def calc_model_complexity_running_new(model, layer_num, epoch):
+    print("只剪掉某一层..")
     state = copy.deepcopy(model.get_model().state_dict())
-    model.get_model().compress_one_layer(0, epoch)
+    model.get_model().layer_num = layer_num
+    assert layer_num in model.get_model().block_dict.keys(), "输入的层号必须是BlackBlock层，请检查！"
+    layer_num = model.get_model().block_dict[layer_num]
+    model.get_model().compress_one_layer(layer_num, epoch)
     calc_model_complexity(model)
 
 def calc_model_complexity_running(model, merge_flag=False):

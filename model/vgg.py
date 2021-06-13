@@ -10,6 +10,7 @@ from util import utility
 def make_model(args, parent=False):
     return VGG(args[0])
 
+
 # reference: torchvision
 class VGG(nn.Module):
     def __init__(self, args, conv3x3=common.default_conv, conv1x1=None):
@@ -23,7 +24,8 @@ class VGG(nn.Module):
             'A': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
             'B': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
             '16': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
-            '19': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
+            '19': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512,
+                   'M'],
             'ef': [32, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 256, 256, 256, 'M', 256, 256, 256, 'M']
         }
 
@@ -51,14 +53,14 @@ class VGG(nn.Module):
                         body_list += [conv2d, nn.ReLU(inplace=True)]
                     in_channels = v
 
-
         # assert(args.data_train.find('CIFAR') >= 0)
         self.body_list = body_list
         self.features = nn.Sequential(*body_list)
         if args.data_train.find('CIFAR') >= 0:
             n_classes = int(args.data_train[5:])
             if args.template.find('linear3') >= 0:
-                self.classifier = nn.Sequential(nn.Linear(in_channels, in_channels), nn.Linear(in_channels, in_channels),
+                self.classifier = nn.Sequential(nn.Linear(in_channels, in_channels),
+                                                nn.Linear(in_channels, in_channels),
                                                 nn.Linear(in_channels, n_classes))
             else:
                 self.classifier = nn.Linear(in_channels, n_classes)
@@ -87,9 +89,14 @@ class VGG(nn.Module):
         self.total_time = [0] * len(body_list)
         self.top1_err_list = []
         self.sum_list = []
+        self.layer_num = -1  # Cluster Prunning实验层编号
+        self.spec_list = []  # 第layer_num层推理时间
 
-        # for i in range(len(body_list)):
-        #     body_list[i] = nn.Sequential(body_list[i])
+        self.block_dict = {0: 0, 1: 1, 3: 2, 4: 3, 6: 4, 7: 5, 8: 6,
+                           10: 7, 11: 8, 12: 9, 14: 10, 15: 11, 16: 12}
+
+        for i in range(len(body_list)):
+            body_list[i] = nn.Sequential(body_list[i])
 
     def forward(self, x):
         body_list = self.body_list
@@ -97,7 +104,7 @@ class VGG(nn.Module):
 
         for i in range(len(body_list)):
             layer = body_list[i]
-            layer = nn.Sequential(layer)
+            # layer = nn.Sequential(layer)
             timer.tic()
             x = layer(x)
             self.total_time[i] += timer.toc()
@@ -130,7 +137,7 @@ class VGG(nn.Module):
                 return
         elif args.data_train == 'ImageNet':
             if args.pretrain == 'download':
-                #print('pretrain download')
+                # print('pretrain download')
                 if self.norm is not None:
                     url = 'https://download.pytorch.org/models/vgg16_bn-6c64b313.pth'
                 else:
@@ -144,5 +151,5 @@ class VGG(nn.Module):
             return
         else:
             raise NotImplementedError('Unavailable dataset {}'.format(args.data_train))
-        #print(state['features.0.bias'])
+        # print(state['features.0.bias'])
         self.load_state_dict(state, strict=strict)

@@ -111,10 +111,6 @@ class Trainer():
 
             timer_data.tic()
 
-        # print(" timer_data : ")
-        # print(timer_data.toc())
-        # print("timer_model : ")
-        # print(timer_model.toc())
 
         self.model.log(self.ckp)
         self.loss.end_log(len(self.loader_train.dataset))
@@ -128,12 +124,19 @@ class Trainer():
         self.model.eval()
 
         timer_test = utility.timer()
-        timer_test.tic()
+        i = 0
         with torch.no_grad():
             for img, label in tqdm(self.loader_test, ncols=80):
+                i = i + 1
+                if i == 5:
+                    break
                 img, label = self.prepare(img, label)
+                timer_test.tic()
                 prediction = self.model(img)
+                timer_test.hold()
                 self.loss(prediction, label, train=False)
+
+        current_time = timer_test.acc
 
         self.loss.end_log(len(self.loader_test.dataset), train=False)
 
@@ -148,7 +151,7 @@ class Trainer():
             self.ckp.write_log('\nBest during searching')
             for i, measure in enumerate(('Loss', 'Top1 error', 'Top5 error')):
                 self.ckp.write_log('{}: {:.3f} from epoch {}'.format(measure, best[0][i], best[1][i]))
-        current_time = timer_test.toc()
+
         self.ckp.write_log('Time: {:.2f}s\n'.format(current_time), refresh=True)
 
         is_best = self.loss.log_test[-1, self.args.top] <= best[0][self.args.top]
@@ -160,7 +163,7 @@ class Trainer():
         self.scheduler.step()
 
         # 下面是新加的统计内容
-        timer_test_list.append("{:.2f}".format(current_time))
+        timer_test_list.append("{:.3f}".format(current_time))
         print("whole network inference time : ")
         print(timer_test_list)
 
@@ -170,12 +173,17 @@ class Trainer():
         print(self.model.get_model().total_time)
         print("sum : ")
         print("{:.5f}".format(sum(self.model.get_model().total_time)))
+        if self.model.get_model().layer_num != -1:
+            self.model.get_model().spec_list.append("{:.5f}".format(self.model.get_model().total_time[self.model.get_model().layer_num]))
+            print("the %d 's layer inference time list : " % self.model.get_model().layer_num)
+            print(self.model.get_model().spec_list)
         self.model.get_model().sum_list.append("{:.5f}".format(sum(self.model.get_model().total_time)))
         print("sum list : ")
         print(self.model.get_model().sum_list)
         self.model.get_model().top1_err_list.append("{:.3f}".format(self.loss.log_test[-1, 1]))
         print("top1 error list : ")
         print(self.model.get_model().top1_err_list)
+
 
 
     def prepare(self, *args):

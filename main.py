@@ -23,12 +23,15 @@ if checkpoint.ok:
 
     current_ratio_list = []
     current_ratio, ratio_log = 1.0, []
+    layer_num = 0
+    print("layer_num = " % layer_num)
 
     while current_ratio > args.ratio and current_ratio - args.ratio > args.stop_limit and not t.terminate():
+        my_model.get_model().layer_num = layer_num
         t.train()
         t.test()
         # 剪一层
-        calc_model_complexity_running_new(my_model, t.scheduler.last_epoch)
+        calc_model_complexity_running_new(my_model, layer_num, t.scheduler.last_epoch)
         # 剪整个network
         # calc_model_complexity_running(my_model, False)
         current_ratio = my_model.get_model().flops_compress / my_model.get_model().flops
