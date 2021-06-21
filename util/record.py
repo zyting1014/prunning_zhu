@@ -30,4 +30,3 @@ def save(current_ratio_list, whole_inference_time, sum_list, top1_err_list, para
 
     data.to_csv(filename, encoding="utf_8_sig")
     print(filename + "已保存！")
-    return
