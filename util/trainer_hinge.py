@@ -10,7 +10,6 @@ from model_hinge.hinge_utility import reg_anneal
 from loss import distillation
 matplotlib.use('Agg')
 #from IPython import embed
-timer_test_list = []
 
 
 class Trainer():
@@ -128,8 +127,8 @@ class Trainer():
         with torch.no_grad():
             for img, label in tqdm(self.loader_test, ncols=80):
                 i = i + 1
-                if i == 5:
-                    break
+                # if i == 5:
+                #     break
                 img, label = self.prepare(img, label)
                 timer_test.tic()
                 prediction = self.model(img)
@@ -163,9 +162,9 @@ class Trainer():
         self.scheduler.step()
 
         # 下面是新加的统计内容
-        timer_test_list.append("{:.3f}".format(current_time))
+        self.model.get_model().timer_test_list.append("{:.3f}".format(current_time))
         print("whole network inference time : ")
-        print(timer_test_list)
+        print(self.model.get_model().timer_test_list)
 
         print("each layer time: ")
         for i in range(len(self.model.get_model().total_time)):

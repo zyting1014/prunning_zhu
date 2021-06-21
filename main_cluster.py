@@ -26,6 +26,12 @@ if checkpoint.ok:
     current_ratio_list = []
     current_ratio, ratio_log = 1.0, []
 
-    my_model.get_model().algorithm(t, 8, 0.6)
+    my_model.get_model().algorithm(t, 4, 0.99)
 
-    t.test()
+    # print("###################################################")
+    # print("################进入fine-tune阶段！！###############")
+    # print("###################################################")
+    # for i in range(200):
+    #     t.train()
+    #     t.test()
+    print("done")

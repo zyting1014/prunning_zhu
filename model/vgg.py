@@ -91,6 +91,10 @@ class VGG(nn.Module):
         self.sum_list = []
         self.layer_num = -1  # Cluster Prunning实验层编号
         self.spec_list = []  # 第layer_num层推理时间
+        self.current_ratio_list = []  # flops率
+        self.parameter_ratio_list = []  # parameter率
+        self.timer_test_list = []  # 整个网络推理时间
+
 
         self.block_dict = {0: 0, 1: 1, 3: 2, 4: 3, 6: 4, 7: 5, 8: 6,
                            10: 7, 11: 8, 12: 9, 14: 10, 15: 11, 16: 12}

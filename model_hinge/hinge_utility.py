@@ -195,11 +195,16 @@ def print_array_on_one_line():
 
 def get_nonzero_index_spec_layer_num(x, num):
     n = torch.norm(x, p=2, dim=0)
-    t = n.sort().values[0]  # 只修剪一个filter
+    t = n.sort().values[num]  # 只修剪一个filter
     f = n > t
     f = torch.nonzero(f).squeeze(dim=1)
     return n, f
 
+def get_nonzero_index_spec_threshold(x, dim, threshold):
+    n = torch.norm(x, p=2, dim=0 if dim == 'output' else 1)
+    f = n > threshold
+    f = torch.nonzero(f).squeeze(dim=1)
+    return n, f
 
 def get_nonzero_index(x, dim='output', counter=1, percentage=0.2, threshold=5e-3, fix_channel=0):
     n = torch.norm(x, p=2, dim=0 if dim == 'output' else 1)
@@ -326,17 +331,32 @@ def calc_model_complexity(model):
                   model.params / 10. ** 3))
 
 def calc_model_complexity_running_new(model, layer_num, epoch):
+    #  本来epoch传入的是t.scheduler.last_epoch
     print("只剪掉某一层..")
     state = copy.deepcopy(model.get_model().state_dict())
     model.get_model().layer_num = layer_num
-    assert layer_num in model.get_model().block_dict.keys(), "输入的层号必须是BlackBlock层，请检查！"
+    assert layer_num in model.get_model().block_dict.keys(), "输入的层号必须是BasicBlock层，请检查！"
     layer_num = model.get_model().block_dict[layer_num]
     model.get_model().compress_one_layer(layer_num, epoch)
     calc_model_complexity(model)
 
+def calc_model_complexity_running_sp_layers(model, layer_cnt, epoch):
+    print("指定某几个层剪枝..")
+    state = copy.deepcopy(model.get_model().state_dict())
+    import random
+    new_dict = {v: k for k, v in model.get_model().block_dict.items()}
+    print("len : ", len(new_dict))
+    print("cnt : ", layer_cnt)
+    layer_num_list = random.sample(range(0, len(new_dict) - 1), layer_cnt)
+    for layer_num in layer_num_list:
+        # layer_num = new_dict[layer_num]
+        model.get_model().layer_num = layer_num
+        model.get_model().compress_one_layer(layer_num, epoch)
+    calc_model_complexity(model)
+
 def calc_model_complexity_running(model, merge_flag=False):
     state = copy.deepcopy(model.get_model().state_dict())
-    model.get_model().compress()
+    model.get_model().compress_sp_threshold()
     calc_model_complexity(model)
     # model.get_model().load_state_dict(state, strict=False)
 
